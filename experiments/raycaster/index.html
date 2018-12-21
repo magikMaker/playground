@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Raycaster Demo</title>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+    /*
+
+MDN tutorial:
+https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API/A_basic_ray-caster
+https://github.com/mdn/canvas-raycaster
+
+           270°
+            |
+            |
+    180° ---+--- 0°
+            |
+            |
+           90°
+
+
+  origin: (0, 0)
+    +-------------- X
+    |    .
+    |    .
+    |    .
+    |..... Point (x, y)
+    |
+    |
+    |
+    Y
+
+     */
+
+    const WIDTH = 500;
+    const HEIGHT = 500;
+    const PI = Math.PI;
+    const DEG2RAD = Math.PI / 180;
+    const SPACE = '#fff';
+    const WALL = '#000';
+    const HIGHLIGHT = '#c00';
+
+    //    const RAD2DEG = 180 / Math.PI;
+
+    let gameMap;
+    let player;
+    let rayCaster
+
+
+/**
+ * Finds the intersection point between
+ *     * the rectangle with parallel sides to the x and y axes 
+ *     * the half-line pointing towards (x,y)
+ *       originating from the middle of the rectangle
+ *
+ * Note: the function works given min[XY] <= max[XY],
+ *       even though minY may not be the "top" of the rectangle
+ *       because the coordinate system is flipped.
+ * Note: if the input is inside the rectangle,
+ *       the line segment wouldn't have an intersection with the rectangle,
+ *       but the projected half-line does.
+ * Warning: passing in the middle of the rectangle will return the midpoint itself
+ *          there are infinitely many half-lines projected in all directions,
+ *          so let's just shortcut to midpoint (GIGO).
+ *
+ * @param x:Number x coordinate of point to build the half-line from
+ * @param y:Number y coordinate of point to build the half-line from
+ * @param minX:Number the "left" side of the rectangle
+ * @param minY:Number the "top" side of the rectangle
+ * @param maxX:Number the "right" side of the rectangle
+ * @param maxY:Number the "bottom" side of the rectangle
+ * @return an object with x and y members for the intersection
+ * @see <a href="http://stackoverflow.com/a/31254199/253468">source</a>
+ * @see <a href="http://stackoverflow.com/a/18292964/253468">based on</a>
+ */
+function pointOnRect(x, y, minX, minY, maxX, maxY) {
+	//assert minX <= maxX;
+	//assert minY <= maxY;
+	var midX = (minX + maxX) / 2;
+	var midY = (minY + maxY) / 2;
+
+	// if (midX - x == 0) -> m == ±Inf -> minYx/maxYx == x (because value / ±Inf = ±0)
+	var m = (midY - y) / (midX - x);
+
+	// check "left" side
+	if (x <= midX) { 
+		var minXy = m * (minX - x) + y;
+		if (minY <= minXy && minXy <= maxY){
+		    return {x: minX, y: minXy};
+		}
+	}
+
+    // check "right" side
+	if (x >= midX) { 
+		var maxXy = m * (maxX - x) + y;
+		if (minY <= maxXy && maxXy <= maxY){
+		    return {x: maxX, y: maxXy};
+		}
+	}
+
+    // check "top" side
+	if (y <= midY) { 
+		var minYx = (minY - y) / m + x;
+		if (minX <= minYx && minYx <= maxX){
+		    return {x: minYx, y: minY};
+		}
+	}
+
+    // check "bottom" side
+	if (y >= midY) { 
+		var maxYx = (maxY - y) / m + x;
+		if (minX <= maxYx && maxYx <= maxX){
+		    return {x: maxYx, y: maxY};
+		}
+	}
+
+	// edge case when finding midpoint intersection: m = 0/0 = NaN
+	if (x === midX && y === midY) {
+	    return {x: x, y: y};
+	}
+
+	// Should never happen :)
+	throw "Cannot find intersection for " + [x,y]
+	    + " inside rectangle " + [minX, minY] + " - " + [maxX, maxY] + ".";
+}
+
+    /**
+     * Handles drawing of the map
+     */
+    class GameMap {
+
+        constructor(context) {
+            this.context = context;
+            // defines the layout of the map
+            this.layout = [
+                [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+                [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1],
+                [1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 1, 1, 0, 1],
+                [1, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1],
+                [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+            ];
+            this.cellWidth = WIDTH / this.layout[0].length;
+            this.cellHeight = HEIGHT / this.layout.length;
+            this.squares = this.createSquares();
+            console.log('SQ', this.squares);
+        }
+
+        /**
+         * Creates an array with Objects representing squares on the GameMap,
+         * each square object consists of:
+         * - center coordinates
+         * - colour (black or white)
+         * - topLeft point coordinates
+         * - topRight point coordinates
+         * - bottomRight point coordinates
+         * - bottomLeft point coordinates
+         *
+         * @returns {array}
+         */
+        createSquares(){
+            const squares = [];
+            this.layout.forEach((row, rowIndex) => {
+                row.forEach((cell, cellIndex) => {
+                    let colour = cell ? WALL : SPACE;
+//                     let centerPosition = {
+//                         x: this.cellWidth * cellIndex + 0.5 * this.cellWidth,
+//                         y: this.cellHeight * rowIndex + 0.5 * this.cellHeight
+//                     };
+                    let topLeft = {
+                        x: this.cellWidth * cellIndex,
+                        y: this.cellHeight * rowIndex,                        
+                    };
+                    let topRight = {
+                        x: this.cellWidth * cellIndex + this.cellWidth,
+                        y: this.cellHeight * rowIndex
+                    };
+                    let bottomRight = {
+                        x: this.cellWidth * cellIndex + this.cellWidth,
+                        y: this.cellHeight * rowIndex + this.cellHeight
+                    };
+                    let bottomLeft = {
+                        x: this.cellWidth * cellIndex,
+                        y: this.cellHeight * rowIndex + this.cellHeight
+                    }; 
+                    
+                    squares.push({
+                        colour,
+                        bottomLeft,
+                        bottomRight,
+                        topLeft,
+                        topRight
+                    });                  
+                });
+            });
+            return squares;
+        }
+
+        /**
+         * Returns all GameMap items that are in view from the provided coordinate
+         * with the provided radius
+         *
+         * @param {number} x the x coordinate of the location to view from
+         * @param {number} y the y coordinate of the location to view from
+         * @returns {array} array with items that are in view
+         */
+        getItemsInView(position, radius){
+            /*
+            const itemsInView = this.squares.reduce((accumulator, currentValue) => {
+                if(currentValue.colour === WALL && x >= currentValue.startPosition.x && x <= currentValue.startPosition.x + this.cellWidth){
+                    currentValue.colour = HIGHLIGHT;
+                    accumulator.push(currentValue);
+                }
+            }, []);
+            */
+
+//             console.log('square.bottomRight.x >= x - radius', position.x, position.y, radius);
+            const itemsInView = [];
+            // TODO optimize by only looping over the squares that are in view
+            // first calculate indexes of s
+            this.squares = this.squares.map(square => {
+
+                if(square.colour === WALL 
+                    && square.bottomRight.x >= position.x - radius
+                    && square.bottomLeft.x <= position.x + radius
+                    && square.bottomRight.y >= position.y - radius
+                    && square.topRight.y <= position.y + radius){
+                    square.colour = HIGHLIGHT;
+                    itemsInView.push(square);
+                }   
+                return square;             
+            });
+            return itemsInView;
+        }
+        
+        /**
+         * Calculates whether the provided start and end point of the line segment
+         * intersect with any of the walls in the map
+         *
+         * @param {object} start point of the line segment
+         * @param {object} end point of the line segment
+         * returns {null|object} null when no intersection else object with x and y coordinates
+         */
+        doesIntersect(start, end){
+            return null;
+        }
+
+        /**
+         * Updates the GameMap, i.e. colours walls that are in view (for now)
+         * 
+         * @param {object} position the positions of the player (start of rays)
+         * @param {number} rayLength the length of each ray
+         * @retrurns {void}
+         */
+        update(position, rayLength){
+            this.getItemsInView(position, rayLength);
+        }
+
+        /**
+         * draws the map
+         */
+        draw() {
+            this.squares.forEach(square => {
+                    this.context.fillStyle = square.colour;
+                    this.context.fillRect(
+                        square.topLeft.x,
+                        square.topLeft.y,
+                        this.cellWidth,
+                        this.cellHeight
+                    );                
+            });
+        }
+    }
+
+    class RayCaster {
+
+        constructor(context) {
+            this.context = context;
+            this.numberOfRays = 100;
+            this.rayLength = HEIGHT / 4;
+            this.viewAngle = 60 * DEG2RAD; // field of view in degrees
+            this.anglePerRay = this.viewAngle / (this.numberOfRays - 1);
+        }
+
+        /**
+         * updates Angle and Position
+         *
+         * @returns {void}
+         */
+        update(position, angle) {
+            this.position = position;
+            this.angle = angle;
+            gameMap.update(position, this.rayLength);
+        }
+
+
+        /**
+         * Draws the rays
+         *
+         * @returns {void}
+         */
+        draw() {
+            this.context.lineWidth = 1;
+            this.context.strokeStyle = 'rgba(200, 0, 0, 0.2)';
+
+            for(let i = 0; i < this.numberOfRays; ++i) {
+                let angle = -1 * this.viewAngle / 2 + i * this.anglePerRay + this.angle;
+                let startX = this.position.x + Math.cos(angle) * player.radius;
+                let startY = this.position.y + Math.sin(angle) * player.radius;
+                let endX = this.position.x + Math.cos(angle) * this.rayLength;
+                let endY = this.position.y + Math.sin(angle) * this.rayLength;
+                
+                const doesIntersect = gameMap.doesIntersect({x: startX, y: startY}, {x: endX, y: endY});
+                let x = doesIntersect ? doesIntersect.x : endX;
+                let y = doesIntersect ? doesIntersect.y : endY;
+
+                this.context.beginPath();
+                this.context.moveTo(startX, startY);
+                this.context.lineTo(x, y);
+                this.context.stroke();
+            }
+        }
+    }
+
+    /**
+     * Keyboard controls to handle user input
+     *
+     * @class
+     */
+    class Controls {
+
+        constructor() {
+            this.keyState = {};
+            this.KEYS = {
+                DOWN: 40,  // Down Array Key
+                LEFT: 37,  // Left Arrow Key
+                RIGHT: 39, // Right Arrow Key
+                UP: 38,    // Up Arrow Key
+                SPACE: 32  // Spacebar
+            };
+
+            window.onkeydown = event => {
+                this.keyState[event.keyCode] = true;
+            };
+
+            window.onkeyup = event => {
+                this.keyState[event.keyCode] = false;
+            };
+        }
+
+        isDown(keyCode) {
+            return this.keyState[keyCode] === true;
+        }
+    }
+
+    /**
+     * Represents a player
+     */
+    class Player {
+
+        /**
+         * Player constructor
+         */
+        constructor(context) {
+            this.context = context;
+            this.controls = new Controls();
+            this.angle = 270 * DEG2RAD;
+            this.radius = gameMap.cellWidth / 2;
+            this.rayCaster = new RayCaster(this.context);
+            this.position = {
+                x: WIDTH / 2,
+                y: HEIGHT / 2
+            };
+        }
+
+        /**
+         * updates the player, i.e. moves or rotates the player
+         *
+         * @returns {void}
+         */
+        update() {
+            // rotate
+            if(this.controls.isDown(this.controls.KEYS.LEFT)) {
+                this.angle -= 1 * DEG2RAD;
+            } else if(this.controls.isDown(this.controls.KEYS.RIGHT)) {
+                this.angle += 1 * DEG2RAD;
+            }
+
+            // move
+            // TODO FIXME detect collision with walls
+            if(this.controls.isDown(this.controls.KEYS.UP)) {
+                this.position.x += Math.cos(this.angle);
+                this.position.y += Math.sin(this.angle);
+            } else if(this.controls.isDown(this.controls.KEYS.DOWN)) {
+                this.position.x -= Math.cos(this.angle);
+                this.position.y -= Math.sin(this.angle);
+            }
+
+            // update rayCaster
+            this.rayCaster.update(this.position, this.angle);
+        }
+
+        /**
+         * draws the player
+         */
+        draw() {
+            this.context.fillStyle = 'rgb(200, 0, 0)';
+            this.context.beginPath();
+            this.context.arc(
+                this.position.x,
+                this.position.y,
+                gameMap.cellWidth / 2,
+                0,
+                2 * PI
+            );
+            this.context.fill();
+            
+            //draw the rayCaster
+            this.rayCaster.draw();
+        }
+    }
+
+    /**
+     * Updates the game items
+     */
+    function update() {
+        player.update();
+    }
+
+    /**
+     * Draws the items on the canvas
+     */
+    function draw() {
+        gameMap.draw();
+        player.draw();
+    }
+
+    /**
+     * The main game loop
+     */
+    function loop() {
+        update();
+        draw();
+        window.requestAnimationFrame(loop);
+    }
+
+    /**
+     * Initialise the app
+     */
+    function init() {
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+
+        gameMap = new GameMap(context);
+        player = new Player(context);
+
+        window.requestAnimationFrame(loop);
+    }
+
+    init();
+</script>
+</body>
+</html>
