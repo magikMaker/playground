@@ -292,12 +292,12 @@
             }
 
             // set up lines by looping over all the points
-            this.points.forEach(point => {
-                this.points.forEach(pointPair => {
-                    if(point !== pointPair && !this.lines.find(vertex => vertex.hasPoints(point, pointPair))) {
+            this.points.forEach(point1 => {
+                this.points.forEach(point2 => {
+                    if(point1 !== point2 && !this.lines.find(line => line.hasPoints(point1, point2))) {
                         let line = new Line(this.context);
-                        line.addPoint(point);
-                        line.addPoint(pointPair);
+                        line.addPoint(point1);
+                        line.addPoint(point2);
                         this.lines.push(line);
                     }
                 });
