@@ -19,11 +19,12 @@
 <script>
     const COLOUR = 'rgba(200, 0, 0, 0.4)';
     const HEIGHT = document.body.clientHeight;
-    const MAX_LINE_LENGTH = WIDTH / 9;
     const NUM_POINTS = random(30, 60);
     const PI = Math.PI;
     const RADIUS = 2;
     const WIDTH = document.body.clientWidth;
+    // set the max line length relative to the width
+    const MAX_LINE_LENGTH = WIDTH / 9;
     let scene;
 
     /**
