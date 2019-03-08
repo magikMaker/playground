@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Lines</title>
+    <style>
+        body,
+        canvas,
+        html {
+            background-color: #111;
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script>
+    const NUM_POINTS = random(30, 60);
+    const PI = Math.PI;
+    const WIDTH = document.body.clientWidth;
+    const HEIGHT = document.body.clientHeight;
+    const MAX_LINE_LENGTH = WIDTH / 9;
+    const RADIUS = 2;
+    const COLOUR = 'rgba(200, 0, 0, 0.4)';
+    let scene;
+
+    /**
+     * Maps a value within a certain range to another range
+     *
+     * @param {number} value the original value
+     * @param {number} start1 the start of the range of the original value
+     * @param {number} stop1 the end of the range of the original value
+     * @param {number} start2 the start of the desired range
+     * @param {number} stop2 the end of the desired range
+     * @returns the new value
+     */
+    function map(value, start1, stop1, start2, stop2) {
+        return (value - start1) / (stop1 - start1) * (stop2 - start2) + start2;
+    };
+
+    /**
+     * Returns a random value between `min` and `max` (included)
+     *
+     * @returns {number} the random value between `min` and `max` (included)
+     */
+    function random(min, max) {
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    /**
+     * Creates a Tuple
+     */
+    class Tuple {
+
+        /**
+         * Constructs a new Tuple
+         *
+         * @returns {void}
+         */
+        constructor() {
+            this.set = new Set();
+        }
+
+        /**
+         * Adds all the supplied values to the Tupple
+         *
+         * @example
+         * <code>
+         *     const tuple = new Tuple();
+         *     tuple.add(value1, value2, ...);
+         * </code>
+         * @param {...} values the value(s) to add to the Tuple
+         * @returns {void}
+         */
+        add(...values) {
+            values.forEach(value => {
+                this.set.add(value);
+            });
+        }
+
+        /**
+         * Checks to see if all the supplied values exist in this Tubple
+         *
+         * @example
+         * <code>
+         *     const tuple = new Tuple();
+         *     tuple.add('one', 'two', 'three');
+         *     tuple.hasAll('one', 'two'); // returns true
+         *     tuple.hasAll('one', 'five'); // returns false
+         * </code>
+         * @param {...} values the values to check
+         * @returns {boolean}
+         */
+        hasAll(...values) {
+            let hasValues = [];
+            values.forEach(value => {
+                if(this.has(value)) {
+                    hasValues.push(1);
+                }
+            })
+
+            return values.length === hasValues.length
+        }
+
+        /**
+         * Checks to see if `value` is present in this Tuple
+         *
+         * @example
+         * <code>
+         *     const tuple = new Tuple();
+         *     tuple.add('one');
+         *     tuple.has('one'); // returns true
+         *     tuple.has('two'); // returns false
+         * </code>
+         * @param {mixed} value
+         * @return {boolean} whether or not `value` is present in this Tuple
+         */
+        has(value) {
+            return this.set.has(value);
+        }
+
+        /**
+         * Returns an Iterable containing the values of the Tuple
+         *
+         * @return {IterableIterator<any>}
+         */
+        values() {
+            return this.set.values();
+        }
+    }
+
+    /**
+     * Represents a point on the canvas that the lines connect to
+     */
+    class Point {
+
+        /**
+         * Constructs a new point at a random coordinate on the canvas
+         *
+         * @returns {void}
+         */
+        constructor(context) {
+            this.context = context;
+            this.radius = RADIUS;
+            this.velocity = {
+                x: random(-0.4, 0.4),
+                y: random(-0.6, 0.6)
+            };
+            const min = 0 + this.radius;
+            const maxX = WIDTH - this.radius;
+            const maxY = HEIGHT - this.radius;
+            this.x = random(min, maxX);
+            this.y = random(min, maxY);
+            this.tick = 0;
+        }
+
+        /**
+         * Draws the point on the canvas
+         *
+         * @returns {void}
+         */
+        draw() {
+            this.context.fillStyle = COLOUR;
+            this.context.beginPath();
+            this.context.arc(
+                this.x,
+                this.y,
+                this.radius,
+                0,
+                2 * PI
+            );
+            this.context.fill();
+        }
+
+        /**
+         * Updates the position of the point
+         *
+         * @returns {void}
+         */
+        update() {
+            this.tick += 0.05;
+            this.x += this.velocity.x + this.velocity.x * Math.cos(this.tick);
+            this.y += this.velocity.y + this.velocity.y * Math.sin(this.tick);
+
+            // make sure the point stays bounded within the canvas
+            if(this.x < 0 + this.radius || this.x > WIDTH - this.radius) {
+                this.velocity.x *= -1;
+            }
+
+            if(this.y < 0 + this.radius || this.y > HEIGHT - this.radius) {
+                this.velocity.y *= -1;
+            }
+        }
+
+        /**
+         * Returns the distance in pixels the supplied point and this one.
+         *
+         * @returns {number} the distance in pixels
+         */
+        distanceTo(point) {
+            return Math.sqrt(Math.pow((point.x - this.x), 2) + Math.pow((point.y - this.y), 2));
+        }
+    }
+
+    /**
+     * Represents a line (i.e. a line between two points)
+     */
+    class Line {
+        constructor(context) {
+            this.context = context;
+            this.lineWidth = RADIUS * 2;
+            this.points = new Tuple();
+            this.isVisible = true;
+        }
+
+        /**
+         * Draws the line, if it's visible.
+         *
+         * @see update()
+         * @returns {void}
+         */
+        draw() {
+            if(!this.isVisible) {
+                return;
+            }
+            this.context.lineWidth = this.lineWidth;
+            this.context.strokeStyle = COLOUR;
+            // this.context.shadowBlur = RADIUS;
+            // this.context.shadowColor = '#cc6';
+            this.context.beginPath();
+            this.context.moveTo(this.start.x, this.start.y);
+            this.context.lineTo(this.end.x, this.end.y);
+            this.context.stroke();
+        }
+
+        /**
+         * Adds a point to this line, each line has a start and end point
+         *
+         * @param {Point} point the point to set
+         * @returns {void}
+         */
+        addPoint(point) {
+            this.points.add(point);
+        }
+
+        /**
+         * Updates the line, i.e. gets the current coordinates from the start
+         * and end points and calculates whether or not the line is visible.
+         * The line is only visible when start and end points are within a
+         * certain distance of each other (`MAX_LINE_LENGTH`).
+         *
+         * @returns {void}
+         */
+        update() {
+            const points = this.points.values();
+            this.start = points.next().value;
+            this.end = points.next().value;
+            this.isVisible = this.start.distanceTo(this.end) <= MAX_LINE_LENGTH;
+        }
+
+        /**
+         * Checks to see if the provided points are both present in this line
+         *
+         * @param {...Point} points
+         * @return {boolean} whether or not all Points are present
+         */
+        hasPoints(...points) {
+            return this.points.hasAll(points);
+        }
+    }
+
+    /**
+     * The whole scene
+     */
+    class Scene {
+
+        /**
+         * Constructs a new Scene
+         *
+         * @param {object} context
+         */
+        constructor(context) {
+            this.context = context;
+            this.points = [];
+            this.lines = [];
+
+            // set up points
+            for(let i = 0; i < NUM_POINTS; ++i) {
+                this.points.push(new Point(this.context));
+            }
+
+            // set up lines by looping over all the points
+            this.points.forEach(point => {
+                this.points.forEach(pointPair => {
+                    if(point !== pointPair && !this.lines.find(vertex => vertex.hasPoints(point, pointPair))) {
+                        let line = new Line(this.context);
+                        line.addPoint(point);
+                        line.addPoint(pointPair);
+                        this.lines.push(line);
+                    }
+                });
+            });
+        }
+
+        /**
+         * Draws the points and lines on the canvas
+         *
+         * @returns {void}
+         */
+        draw() {
+            this.context.clearRect(0, 0, WIDTH, HEIGHT);
+            // don't show points for now because it looks nicer withour them :)
+            // this.points.forEach(point => point.draw());
+            this.lines.forEach(line => line.draw());
+        }
+
+        /**
+         * Updates the entire scene, i.e. the Points and the Lines
+         *
+         * @returns {void}
+         */
+        update() {
+            this.points.forEach(point => point.update());
+            this.lines.forEach(line => line.update());
+        }
+    }
+
+    /**
+     * Updates the scene items
+     *
+     * @returns {void}
+     */
+    function update() {
+        scene.update();
+    }
+
+    /**
+     * Draws the items on the canvas
+     *
+     * @returns {void}
+     */
+    function draw() {
+        scene.draw();
+    }
+
+    /**
+     * The main animation loop
+     *
+     * @returns {void}
+     */
+    function loop() {
+        update();
+        draw();
+        window.requestAnimationFrame(loop);
+    }
+
+    /**
+     * Initialise the app
+     *
+     * @returns {void}
+     */
+    function init() {
+        const canvas = document.getElementById('canvas');
+        const context = canvas.getContext('2d');
+        context.shadowBlur = 10;
+        context.shadowColor = COLOUR;
+        canvas.width = WIDTH;
+        canvas.height = HEIGHT;
+
+        // setup objects
+        scene = new Scene(context);
+        loop();
+    }
+
+    init();
+</script>
+</body>
+</html>
