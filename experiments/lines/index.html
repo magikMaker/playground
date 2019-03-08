@@ -36,7 +36,7 @@
     const NUM_POINTS = random(30, 60);
     const PI = Math.PI;
     const RADIUS = 0.5;
-    const TOP_MARGIN = 30;
+    const TOP_MARGIN = 35;
     const WIDTH = document.body.clientWidth;
 
     /**
@@ -158,7 +158,7 @@
             this.context = context;
             this.radius = RADIUS;
             this.velocity = {
-                x: random(-0.4, 0.4),
+                x: random(-0.9, 0.9),
                 y: random(-0.6, 0.6)
             };
             const minX = 0 + this.radius;
@@ -194,9 +194,9 @@
          * @returns {void}
          */
         update() {
-            this.tick += 0.05;
-            this.x += this.velocity.x + this.velocity.x * Math.cos(this.tick);
-            this.y += this.velocity.y + this.velocity.y * Math.sin(this.tick);
+            this.tick += 0.005;
+            this.x += this.velocity.x * Math.cos(this.tick);
+            this.y += this.velocity.y * Math.sin(this.tick);
 
             // make sure the point stays bounded within the canvas
             if(this.x < 0 + this.radius || this.x > WIDTH - this.radius) {
