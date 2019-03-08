@@ -23,9 +23,9 @@
     const PI = Math.PI;
     const RADIUS = 2;
     const WIDTH = document.body.clientWidth;
+
     // set the max line length relative to the width
     const MAX_LINE_LENGTH = WIDTH / 9;
-    let scene;
 
     /**
      * Maps a value within a certain range to another range
@@ -329,32 +329,15 @@
     }
 
     /**
-     * Updates the scene items
-     *
-     * @returns {void}
-     */
-    function update() {
-        scene.update();
-    }
-
-    /**
-     * Draws the items on the canvas
-     *
-     * @returns {void}
-     */
-    function draw() {
-        scene.draw();
-    }
-
-    /**
      * The main animation loop
      *
+     * @param {Scene} scene the Scene instance
      * @returns {void}
      */
-    function loop() {
-        update();
-        draw();
-        window.requestAnimationFrame(loop);
+    function loop(scene) {
+        scene.update();
+        scene.draw();
+        window.requestAnimationFrame(() => loop(scene));
     }
 
     /**
@@ -369,8 +352,8 @@
         canvas.height = HEIGHT;
 
         // setup objects in the scene
-        scene = new Scene(context);
-        loop();
+        const scene = new Scene(context);
+        loop(scene);
     }
 
     init();
