@@ -35,7 +35,7 @@
     const INITIAL_MAX_LINE_PERCENTAGE = 20;
     const NUM_POINTS = random(30, 60);
     const PI = Math.PI;
-    const RADIUS = 2;
+    const RADIUS = 0.5;
     const TOP_MARGIN = 30;
     const WIDTH = document.body.clientWidth;
 
@@ -240,9 +240,9 @@
                 return;
             }
             this.context.lineWidth = this.lineWidth;
-            this.context.strokeStyle = COLOUR;
-            // this.context.shadowBlur = RADIUS;
-            // this.context.shadowColor = '#cc6';
+            // calculate brightness by length, shorter is brighter
+            const alpha = map(this.length, 0, maxLineLength, 1, 0);
+            this.context.strokeStyle = COLOUR.replace(/[\d\.]+\)$/g, `${alpha})`);
             this.context.beginPath();
             this.context.moveTo(this.start.x, this.start.y);
             this.context.lineTo(this.end.x, this.end.y);
@@ -261,7 +261,7 @@
 
         /**
          * Updates the line, i.e. gets the current coordinates from the start
-         * and end points.
+         * and end points end sets the current length.
          *
          * @returns {void}
          */
@@ -269,6 +269,7 @@
             const points = this.points.values();
             this.start = points.next().value;
             this.end = points.next().value;
+            this.length = this.start.distanceTo(this.end);
         }
 
         /**
@@ -279,7 +280,7 @@
          * @returns {boolean} whether or not the line is visible
          */
         isVisible(maxLineLength) {
-            return this.start.distanceTo(this.end) <= maxLineLength;
+            return this.length <= maxLineLength;
         }
 
         /**
