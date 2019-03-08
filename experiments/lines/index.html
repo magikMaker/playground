@@ -12,20 +12,32 @@
             padding: 0;
             width: 100%;
         }
+
+        .slider-pane {
+            height: 20px;
+            left: 0;
+            padding: 10px 0 0 0;
+            position: fixed;
+            right: 0;
+            top: 0;
+        }
     </style>
+    <link rel="stylesheet" href="./slider-styles.css" />
 </head>
 <body>
+<div class="slider-pane">
+    <input id="slider" class="slider" type="range" />
+</div>
 <canvas id="canvas"></canvas>
 <script>
     const COLOUR = 'rgba(200, 0, 0, 0.4)';
     const HEIGHT = document.body.clientHeight;
+    const INITIAL_MAX_LINE_PERCENTAGE = 20;
     const NUM_POINTS = random(30, 60);
     const PI = Math.PI;
     const RADIUS = 2;
+    const TOP_MARGIN = 30;
     const WIDTH = document.body.clientWidth;
-
-    // set the max line length relative to the width
-    const MAX_LINE_LENGTH = WIDTH / 9;
 
     /**
      * Maps a value within a certain range to another range
@@ -149,11 +161,12 @@
                 x: random(-0.4, 0.4),
                 y: random(-0.6, 0.6)
             };
-            const min = 0 + this.radius;
+            const minX = 0 + this.radius;
+            const minY = TOP_MARGIN + this.radius;
             const maxX = WIDTH - this.radius;
             const maxY = HEIGHT - this.radius;
-            this.x = random(min, maxX);
-            this.y = random(min, maxY);
+            this.x = random(minX, maxX);
+            this.y = random(minY, maxY);
             this.tick = 0;
         }
 
@@ -190,7 +203,7 @@
                 this.velocity.x *= -1;
             }
 
-            if(this.y < 0 + this.radius || this.y > HEIGHT - this.radius) {
+            if(this.y < TOP_MARGIN + this.radius || this.y > HEIGHT - this.radius) {
                 this.velocity.y *= -1;
             }
         }
@@ -213,17 +226,17 @@
             this.context = context;
             this.lineWidth = RADIUS * 2;
             this.points = new Tuple();
-            this.isVisible = true;
         }
 
         /**
          * Draws the line, if it's visible.
          *
          * @see update()
+         * @param {number} maxLineLength the maximum length of the line
          * @returns {void}
          */
-        draw() {
-            if(!this.isVisible) {
+        draw(maxLineLength) {
+            if(!this.isVisible(maxLineLength)) {
                 return;
             }
             this.context.lineWidth = this.lineWidth;
@@ -248,9 +261,7 @@
 
         /**
          * Updates the line, i.e. gets the current coordinates from the start
-         * and end points and calculates whether or not the line is visible.
-         * The line is only visible when start and end points are within a
-         * certain distance of each other (`MAX_LINE_LENGTH`).
+         * and end points.
          *
          * @returns {void}
          */
@@ -258,7 +269,17 @@
             const points = this.points.values();
             this.start = points.next().value;
             this.end = points.next().value;
-            this.isVisible = this.start.distanceTo(this.end) <= MAX_LINE_LENGTH;
+        }
+
+        /**
+         * Calculates whether or not the line is visible, i.e. it is shorter
+         * than the maximum line length set in the Scene.
+         *
+         * @params {number} maxLineLength the maximum line length
+         * @returns {boolean} whether or not the line is visible
+         */
+        isVisible(maxLineLength){
+            return this.start.distanceTo(this.end) <= maxLineLength;
         }
 
         /**
@@ -314,7 +335,7 @@
             this.context.clearRect(0, 0, WIDTH, HEIGHT);
             // don't show points for now because it looks nicer withour them :)
             // this.points.forEach(point => point.draw());
-            this.lines.forEach(line => line.draw());
+            this.lines.forEach(line => line.draw(this.maxLineLength));
         }
 
         /**
@@ -325,6 +346,16 @@
         update() {
             this.points.forEach(point => point.update());
             this.lines.forEach(line => line.update());
+        }
+
+        /**
+         * Sets the maximum line length of the Lines
+         *
+         * @param {number} percentage the percentage of the width
+         * @returns {void}
+         */
+        setMaxLineLength(percentage){
+            this.maxLineLength = (percentage / 100) * WIDTH;
         }
     }
 
@@ -348,11 +379,17 @@
     function init() {
         const canvas = document.getElementById('canvas');
         const context = canvas.getContext('2d');
+        const scene = new Scene(context);
         canvas.width = WIDTH;
         canvas.height = HEIGHT;
 
+        // set up slider
+        document.getElementById('slider').addEventListener('input', function(){
+           scene.setMaxLineLength(this.value);
+        });
+        scene.setMaxLineLength(INITIAL_MAX_LINE_PERCENTAGE);
+
         // setup objects in the scene
-        const scene = new Scene(context);
         loop(scene);
     }
 
