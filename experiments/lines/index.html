@@ -22,11 +22,11 @@
             top: 0;
         }
     </style>
-    <link rel="stylesheet" href="./slider-styles.css" />
+    <link rel="stylesheet" href="./slider-styles.css"/>
 </head>
 <body>
 <div class="slider-pane">
-    <input id="slider" class="slider" type="range" />
+    <input id="slider" class="slider" type="range"/>
 </div>
 <canvas id="canvas"></canvas>
 <script>
@@ -278,7 +278,7 @@
          * @params {number} maxLineLength the maximum line length
          * @returns {boolean} whether or not the line is visible
          */
-        isVisible(maxLineLength){
+        isVisible(maxLineLength) {
             return this.start.distanceTo(this.end) <= maxLineLength;
         }
 
@@ -354,7 +354,7 @@
          * @param {number} percentage the percentage of the width
          * @returns {void}
          */
-        setMaxLineLength(percentage){
+        setMaxLineLength(percentage) {
             this.maxLineLength = (percentage / 100) * WIDTH;
         }
     }
@@ -384,9 +384,11 @@
         canvas.height = HEIGHT;
 
         // set up slider
-        document.getElementById('slider').addEventListener('input', function(){
-           scene.setMaxLineLength(this.value);
+        const slider = document.getElementById('slider');
+        slider.addEventListener('input', function() {
+            scene.setMaxLineLength(this.value);
         });
+        slider.value = INITIAL_MAX_LINE_PERCENTAGE;
         scene.setMaxLineLength(INITIAL_MAX_LINE_PERCENTAGE);
 
         // setup objects in the scene
