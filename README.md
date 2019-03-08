@@ -1,5 +1,6 @@
 # playground
-This is a playground for all kinds of experiments
+This is a playground for all kinds of experiments. Live demo's can be found here:
+[magikmaker.github.io/playground](https://magikmaker.github.io/playground/)
 
 Index
 1. [Lines](./experiments/lines/index.html)
@@ -7,4 +8,4 @@ Index
 
 -----
 
-[MIT license](./LICENSE.md)
+[MIT license](./LICENSE)
